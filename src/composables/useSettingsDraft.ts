@@ -32,8 +32,8 @@ export function createSettingsDraft(): Settings {
     startMinimized: true,
     diagTarget: '',
     routes: { subnets: [...DEFAULT_SUBNETS], autoConnect: false, dhcp: true, mtu: DEFAULT_MTU },
-    startClientOnLaunch: false,
-    stopClientOnExit: false,
+    startClientOnLaunch: true,
+    stopClientOnExit: true,
     uiStyle: 'win11',
     locale: locale.value,
   })

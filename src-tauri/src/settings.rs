@@ -62,10 +62,10 @@ pub struct Settings {
     #[serde(default)]
     pub routes: RouteConfig,
     /// 应用启动时自动启动 SoftEther 客户端服务
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub start_client_on_launch: bool,
     /// 应用退出时停止客户端服务（仅当客户端由本应用拉起）
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub stop_client_on_exit: bool,
     /// 界面风格："win11" / "deepin" / "mac"。配置文件里被手改成别的值时，
     /// 保存时归一化；渲染侧同样只认这几种，未知值一律按 win11 处理。
@@ -172,8 +172,8 @@ impl Default for Settings {
             // 与他无关的地址上。留空由前端回落到当前隧道网关（`interface_gateway`）。
             diag_target: String::new(),
             routes: RouteConfig::default(),
-            start_client_on_launch: false,
-            stop_client_on_exit: false,
+            start_client_on_launch: true,
+            stop_client_on_exit: true,
             ui_style: detect_system_ui_style(),
             locale: detect_system_locale(),
         }
@@ -1188,6 +1188,9 @@ mod tests {
         let loaded: Settings = serde_json::from_str(&text).unwrap();
         assert_eq!(loaded.routes.subnets.len(), 3);
         assert!(loaded.notifications);
+        // 「随应用开关」是两个服务的默认行为：新装用户不勾也能开箱即用
+        assert!(loaded.start_client_on_launch);
+        assert!(loaded.stop_client_on_exit);
         assert_eq!(loaded.routes.mtu, 1400);
         assert_eq!(loaded.ui_style, settings.ui_style);
         // locale 首次安装时按系统语言探测，测试环境不假定具体取值，只要求往返一致

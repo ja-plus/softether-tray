@@ -141,8 +141,8 @@ The SoftEther Linux client is a **long-running root daemon** (two `vpnclient exe
 
 | Setting | Effect |
 |---|---|
-| Start the client service when the app starts | Automatically brings up `vpnclient` when the app opens (skipped if the service is already running) |
-| Stop the client service when the app exits | Disconnects the active VPN and also stops the client service |
+| Start the client service when the app starts | Automatically brings up `vpnclient` when the app opens (skipped if the service is already running); on by default |
+| Stop the client service when the app exits | Disconnects the active VPN and also stops the client service; on by default |
 
 Checking both = **the client follows the app: up with it, down with it**.
 
