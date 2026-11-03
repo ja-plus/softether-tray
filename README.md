@@ -1,6 +1,6 @@
 # SoftEther Tray
 
-**English** | [简体中文](README.zh-CN.md) · [Detailed usage guide](docs/usage.md)
+**English** | [简体中文](README.zh-CN.md) · [Detailed usage guide](docs/usage.md) · [Changelog](CHANGELOG.md)
 
 A SoftEther VPN client that lives in the Linux system tray. The official SoftEther distribution ships a Windows Client Manager only — on Linux you get `vpncmd` — so this app adds a GUI on top of it.
 
@@ -59,7 +59,7 @@ Build the installer:
 npm run tauri build
 ```
 
-The artifacts are under `src-tauri/target/release/bundle/deb/`.
+The artifacts are under `src-tauri/target/release/bundle/deb/` and `src-tauri/target/release/bundle/rpm/`.
 
 Rust tests:
 

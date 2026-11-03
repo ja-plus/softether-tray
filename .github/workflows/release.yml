@@ -89,15 +89,16 @@ jobs:
             libssl-dev \
             libxdo-dev \
             patchelf \
-            pkg-config
+            pkg-config \
+            rpm
 
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build deb package
-        run: npm run tauri build -- --bundles deb
+      - name: Build packages
+        run: npm run tauri build -- --bundles deb,rpm
 
-      - name: Normalize package filename
+      - name: Normalize package filenames
         id: package
         run: |
           DEB=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)
@@ -124,16 +125,51 @@ jobs:
           ASSET="${PKGNAME}_${VERSION}_${ARCH}.deb"
           cp "$DEB" "$GITHUB_WORKSPACE/$ASSET"
 
+          RPM=$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)
+          if [ -z "$RPM" ]; then
+            echo "::error::No .rpm produced"
+            exit 1
+          fi
+
+          RPMNAME=$(rpm -qp --qf '%{NAME}' "$RPM")
+          RPMVER=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$RPM")
+          RPMARCH=$(rpm -qp --qf '%{ARCH}' "$RPM")
+          if [ "$RPMNAME" != "soft-ether-tray" ]; then
+            echo "::error::Unexpected RPM package name: $RPMNAME"
+            exit 1
+          fi
+          if [ "$RPMARCH" != "x86_64" ]; then
+            echo "::error::Unexpected RPM architecture: $RPMARCH (this workflow only builds x86_64)"
+            exit 1
+          fi
+
+          RPM_ASSET="${RPMNAME}-${RPMVER}.${RPMARCH}.rpm"
+          cp "$RPM" "$GITHUB_WORKSPACE/$RPM_ASSET"
+
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "rpm_asset=$RPM_ASSET" >> "$GITHUB_OUTPUT"
+          echo "rpm_name=$RPMNAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Upload package to GitHub release
+      - name: Smoke-test RPM install on Fedora
+        env:
+          RPM_ASSET: ${{ steps.package.outputs.rpm_asset }}
+          RPM_NAME: ${{ steps.package.outputs.rpm_name }}
+        run: |
+          docker run --rm \
+            -e RPM_ASSET -e RPM_NAME \
+            -v "$GITHUB_WORKSPACE:/w:ro" \
+            fedora:latest \
+            bash -c 'dnf install -y "/w/$RPM_ASSET" && rpm -q "$RPM_NAME" && test -x /usr/bin/softether-tray && test -x /usr/lib/softether-tray/client/vpnclient && test -x /usr/libexec/softether-tray/softether-tray-net'
+
+      - name: Upload packages to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.target.outputs.tag }}
           ASSET: ${{ steps.package.outputs.asset }}
+          RPM_ASSET: ${{ steps.package.outputs.rpm_asset }}
         run: |
-          gh release upload "$TAG" "$ASSET" --clobber
+          gh release upload "$TAG" "$ASSET" "$RPM_ASSET" --clobber
 
       - name: Check Spark Store version
         id: store

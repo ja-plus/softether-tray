@@ -1,6 +1,6 @@
 # SoftEther Tray
 
-[English](README.md) | **简体中文** · [详细使用说明](docs/usage.zh-CN.md)
+[English](README.md) | **简体中文** · [详细使用说明](docs/usage.zh-CN.md) · [更新日志](CHANGELOG.md)
 
 一个挂在 Linux 系统托盘的 SoftEther VPN 客户端。官方只提供 Windows 的 Client Manager，Linux 版只有 `vpncmd`，这个应用就是给它补上一层 GUI。
 
@@ -59,7 +59,7 @@ npm run tauri dev
 npm run tauri build
 ```
 
-产物在 `src-tauri/target/release/bundle/deb/`。
+产物在 `src-tauri/target/release/bundle/deb/` 和 `src-tauri/target/release/bundle/rpm/`。
 
 Rust 侧测试：
 

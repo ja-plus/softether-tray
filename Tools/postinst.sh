@@ -1,7 +1,7 @@
 #!/bin/sh
 # softether-tray 安装后配置。
 #
-# deb 的 dpkg 只能把文件放到固定位置，做不了这些事，所以放在这里：
+# deb/rpm 的包管理器只能把文件放到固定位置，做不了这些事，所以放在这里：
 #   1. 给内置客户端脚本可执行权限
 #   2. 装 polkit 授权（让连接/断开不再弹密码框）
 #
@@ -11,7 +11,7 @@ set -e
 CLIENT_DIR=/usr/lib/softether-tray/client
 HELPER=/usr/libexec/softether-tray/softether-tray-net
 
-# 1. 内置客户端：dpkg 会保留包里的权限，但保险起见再设一次。
+# 1. 内置客户端：包管理器会保留包里的权限，但保险起见再设一次。
 #    这些文件必须是 0755，否则普通用户连 --help 都跑不了。
 if [ -d "$CLIENT_DIR" ]; then
     chmod 0755 "$CLIENT_DIR" 2>/dev/null || true
