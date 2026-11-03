@@ -197,6 +197,10 @@ jobs:
           fi
 
       - name: Submit package to Spark Store
+        id: spark
+        # The store submission is a distribution step, not a build gate: a
+        # failure here must not hide that the packages were built and uploaded.
+        continue-on-error: true
         if: steps.store.outputs.should_submit == 'true'
         env:
           # Official Spark Store submitter, pinned by version and SHA-256. The
@@ -227,7 +231,26 @@ jobs:
           # Auto mode reports failure through the exit status (255) instead of
           # printing a message, so the status is the source of truth here.
           if [ "$STATUS" -ne 0 ]; then
-            echo "::error::Spark Store submission failed (exit code $STATUS). See log above."
+            echo "::warning::Spark Store submission failed (exit code $STATUS); packages were still released."
+            {
+              echo "## Spark Store submission failed"
+              echo ""
+              echo "The automated submission exited with code \`$STATUS\`. The deb/rpm are already on the GitHub release."
+              echo ""
+              echo "Submit manually from a machine that can reach the store API:"
+              echo ""
+              echo '```bash'
+              echo "spark-store-submitter-cli --auto --deb $ASSET"
+              echo '```'
+              if [ -s /tmp/spark-submit.log ]; then
+                echo ""
+                echo "Submitter log:"
+                echo ""
+                echo '```'
+                cat /tmp/spark-submit.log
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
