@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { Plus, RotateCcw } from 'lucide-vue-next'
 import NumberInput from '../NumberInput.vue'
+import InfoTip from '../InfoTip.vue'
 import { t } from '../../lib/i18n'
 import { DEFAULT_MTU, DEFAULT_SUBNETS, MTU_RANGE, useSettingsDraft } from '../../composables/useSettingsDraft'
 
@@ -40,9 +41,9 @@ function resetRoutes() {
 <template>
   <div class="card block">
     <div class="row-between">
-      <div>
+      <div class="title-line">
         <h2>{{ t('settings.routesTitle') }}</h2>
-        <p class="hint">{{ t('settings.routesIntro') }}</p>
+        <InfoTip :text="t('settings.routesIntro')" />
       </div>
       <button class="ghost" @click="resetRoutes"><RotateCcw :size="14" /> {{ t('settings.restoreDefaults') }}</button>
     </div>
@@ -86,6 +87,12 @@ function resetRoutes() {
 </template>
 
 <style scoped>
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .subnets {
   display: flex;
   flex-wrap: wrap;

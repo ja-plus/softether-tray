@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Settings: the client, virtual NIC, and tunnel/routes section intros now expand from a hover info icon instead of occupying space under the title.
+- "Start the client service when the app starts" and "Stop the client service when the app exits" default to on, so a fresh install follows the app without extra setup.
+- Removed the redundant "saved automatically" hints under the language and style pickers.
+
 ## [0.4.1] - 2026-11-03
 
 ### Added

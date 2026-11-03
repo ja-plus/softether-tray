@@ -58,7 +58,6 @@ watch(
         <span class="hint">{{ option.desc }}</span>
       </button>
     </div>
-    <p class="hint" style="margin: 2px 0 0">{{ t('settings.stylePreview') }}</p>
   </div>
 </template>
 

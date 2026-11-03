@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { Check, Loader2, Power, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-vue-next'
 import { confirmDialog } from '../../lib/dialog'
 import SelectInput, { type SelectOption } from '../SelectInput.vue'
+import InfoTip from '../InfoTip.vue'
 import {
   busy,
   overview,
@@ -260,11 +261,9 @@ onMounted(() => {
 <template>
   <div class="card block">
     <div class="row-between">
-      <div>
+      <div class="title-line">
         <h2>{{ t('client.title') }}</h2>
-        <p class="hint" style="margin: 4px 0 0">
-          {{ t('client.introBefore') }}<span class="mono">vpnclient</span>{{ t('client.introAfter') }}
-        </p>
+        <InfoTip :text="t('client.intro', { cmd: 'vpnclient' })" />
       </div>
       <div class="head-actions">
         <!-- 启停服务放在客户端卡片上：它管的就是这个客户端，
@@ -405,6 +404,12 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* 头部右侧：启停按钮在前，扫描图标在后，图标按钮不吃多余宽度 */
 .head-actions {
   display: flex;

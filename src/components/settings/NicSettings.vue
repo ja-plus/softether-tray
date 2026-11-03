@@ -5,6 +5,7 @@ import { Loader2, Plus, Power, Trash2 } from 'lucide-vue-next'
 import { confirmDialog } from '../../lib/dialog'
 import { overview, refresh, showToast, type NicInfo } from '../../lib/api'
 import { t } from '../../lib/i18n'
+import InfoTip from '../InfoTip.vue'
 
 /**
  * 虚拟网络适配器管理。
@@ -97,9 +98,9 @@ async function askDelete(name: string) {
 <template>
   <div class="card block">
     <div class="row-between">
-      <div>
+      <div class="title-line">
         <h2>{{ t('nic.title') }}</h2>
-        <p class="hint" style="margin: 4px 0 0">{{ t('nic.intro') }}</p>
+        <InfoTip :text="t('nic.intro')" />
       </div>
     </div>
 
@@ -154,6 +155,12 @@ async function askDelete(name: string) {
 </template>
 
 <style scoped>
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nic-list {
   list-style: none;
   margin: 0;
