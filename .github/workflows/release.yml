@@ -217,6 +217,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 git
 
+          # The submitter reads the git identity; without it submissions show
+          # the auto-submit-ci fallback.
+          git config --global user.name "ja-plus"
+          git config --global user.email "601286825@qq.com"
+
           wget -qO /tmp/spark-submitter.deb "$SUBMITTER_URL"
           echo "$SUBMITTER_SHA256  /tmp/spark-submitter.deb" | sha256sum -c -
           dpkg-deb -x /tmp/spark-submitter.deb /tmp/spark-submitter
