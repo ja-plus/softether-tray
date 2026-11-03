@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ArrowRightLeft, Loader2, Plus, RefreshCw, PlugZap, Power } from 'lucide-vue-next'
+import { ArrowRight, ArrowRightLeft, Loader2, Plus, RefreshCw, PlugZap, Power } from 'lucide-vue-next'
 import DisconnectIcon from './DisconnectIcon.vue'
 import { confirmDialog } from '../lib/dialog'
 import SelectInput, { type SelectOption } from './SelectInput.vue'
@@ -27,6 +27,8 @@ import {
   type NicInfo,
 } from '../lib/api'
 import { t, locale } from '../lib/i18n'
+
+const emit = defineEmits<{ navigate: [tab: 'profiles'] }>()
 
 interface RateSample {
   rx: number
@@ -462,6 +464,10 @@ watch(
                 {{ t('overview.switchTo') }}
               </button>
             </template>
+            <!-- 没有配置时给一条明确出口：只写"暂无配置"，用户不知道该去哪建 -->
+            <button class="inline-link" @click="emit('navigate', 'profiles')">
+              {{ t('overview.goToProfiles') }}<ArrowRight :size="12" />
+            </button>
           </div>
         </template>
       </div>
@@ -616,6 +622,23 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 跳转链接：不做成按钮样式，避免和旁边的「创建网卡」「切换客户端」抢动作层级 */
+.no-accounts .inline-link {
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  gap: 3px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.no-accounts .inline-link:hover {
+  color: var(--accent-hover);
 }
 
 .banner {

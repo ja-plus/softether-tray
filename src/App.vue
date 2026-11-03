@@ -85,7 +85,7 @@ async function quit() {
       </aside>
 
       <main>
-        <OverviewTab v-if="ready && tab === 'overview'" />
+        <OverviewTab v-if="ready && tab === 'overview'" @navigate="tab = $event" />
         <ProfilesTab v-else-if="ready && tab === 'profiles'" />
         <DiagnosticsTab v-else-if="ready && tab === 'diag'" />
         <ClientTab v-else-if="ready && tab === 'client'" />
