@@ -7,10 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- Dedicated "Tunnels & routes" page, moved out of Settings, for the subnet list, tunnel MTU, and DHCP cleanup.
+- Start/stop service and rescan actions in the "SoftEther client" page header.
+- Shared naming dialog for creating virtual adapters, with a free-name suggestion (`softether`, `softether2`, …); it stays open when creation fails.
+- App version in the sidebar, above the quit button.
+
 ### Changed
 
-- Settings: the client, virtual NIC, and tunnel/routes section intros now expand from a hover info icon instead of occupying space under the title.
+- Settings: startup and client-service options are grouped into labeled rows with switches.
+- Closing the window minimizes to tray by default and can be configured to quit instead; quitting from the sidebar now asks for confirmation.
+- Subnet chips show a count and require a second click before deleting.
+- Settings section intros now expand from a hover info icon instead of occupying space under the title.
 - "Start the client service when the app starts" and "Stop the client service when the app exits" default to on, so a fresh install follows the app without extra setup.
+- Dropdown popovers now stack above modal dialogs.
+- Docs updated for the new "Tunnels & routes" page.
+
+### Fixed
+
+- Closing the window with minimize-on-close disabled now runs shutdown cleanup and exits, instead of leaving the client running.
 - Removed the redundant "saved automatically" hints under the language and style pickers.
 
 ## [0.4.1] - 2026-11-03
@@ -102,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 11 (Fluent) and Deepin 25 interface styles.
 - Bundled SoftEther client binaries, polkit policy, and privileged network helper.
 
-[Unreleased]: https://github.com/ja-plus/softether-tray/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/ja-plus/softether-tray/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ja-plus/softether-tray/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/ja-plus/softether-tray/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ja-plus/softether-tray/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ja-plus/softether-tray/compare/v0.2.0...v0.3.0
