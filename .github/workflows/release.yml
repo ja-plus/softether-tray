@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -18,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -31,8 +33,9 @@ jobs:
         env:
           EVENT_TAG: ${{ github.event.release.tag_name }}
           INPUT_TAG: ${{ inputs.tag }}
+          REF_TAG: ${{ github.ref_name }}
         run: |
-          TAG="${EVENT_TAG:-$INPUT_TAG}"
+          TAG="${EVENT_TAG:-${INPUT_TAG:-$REF_TAG}}"
           if [ -z "$TAG" ]; then
             echo "::error::No release tag provided"
             exit 1
@@ -162,6 +165,17 @@ jobs:
             fedora:latest \
             bash -c 'dnf install -y "/w/$RPM_ASSET" && rpm -q "$RPM_NAME" && test -x /usr/bin/softether-tray && test -x /usr/lib/softether-tray/client/vpnclient && test -x /usr/libexec/softether-tray/softether-tray-net'
 
+      - name: Ensure the GitHub release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --verify-tag --generate-notes --title "SoftEther Tray $TAG"
+          fi
+
       - name: Upload packages to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -179,7 +193,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           DISPATCH_SUBMIT: ${{ inputs.submit }}
         run: |
-          if [ "$EVENT_NAME" != "release" ] && [ "$DISPATCH_SUBMIT" != "true" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$DISPATCH_SUBMIT" != "true" ]; then
             echo "should_submit=false" >> "$GITHUB_OUTPUT"
             echo "Submission disabled for this run."
             exit 0
