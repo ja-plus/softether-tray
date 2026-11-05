@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Check, Loader2, Power, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-vue-next'
+import { Check, ShieldCheck, TriangleAlert } from 'lucide-vue-next'
 import { confirmDialog } from '../../lib/dialog'
 import SelectInput, { type SelectOption } from '../SelectInput.vue'
-import InfoTip from '../InfoTip.vue'
 import {
-  busy,
   overview,
   showToast,
   settings,
-  startService,
-  stopService,
   switchClientDir,
   type ClientCandidate,
   type ClientSource,
@@ -46,8 +42,6 @@ const SOURCE_OPTIONS = computed<{ value: ClientSource; title: string; note: stri
 
 /** 客户端服务是否在跑。启停按钮跟着它切换红/绿 */
 const serviceRunning = computed(() => overview.value?.serviceRunning ?? false)
-/** 启停服务进行中：按钮转圈，避免连点 */
-const serviceBusy = computed(() => busy.value === 'service')
 
 function snapshotDraft() {
   return {
@@ -256,53 +250,14 @@ onMounted(() => {
   // 扫描最慢（几百毫秒），交给它自己的 loading 状态，不阻塞别的卡片
   void scanClients(true)
 })
+
+// 页头（右侧操作区）在父组件里：启停服务与重新扫描都从这里转发过去。
+// scanning 一并暴露，父组件的扫描按钮要靠它禁用与转圈。
+defineExpose({ scanClients, scanning })
 </script>
 
 <template>
   <div class="card block">
-    <div class="row-between">
-      <div class="title-line">
-        <h2>{{ t('client.title') }}</h2>
-        <InfoTip :text="t('client.intro', { cmd: 'vpnclient' })" />
-      </div>
-      <div class="head-actions">
-        <!-- 启停服务放在客户端卡片上：它管的就是这个客户端，
-             放在连接页反而让人以为跟某条隧道绑定。 -->
-        <button
-          v-if="serviceRunning"
-          class="danger"
-          :disabled="!!busy"
-          :title="t('overview.stopTooltip')"
-          @click="stopService()"
-        >
-          <Loader2 v-if="serviceBusy" :size="14" class="spin" />
-          <Power v-else :size="14" />
-          {{ t('overview.stopService') }}
-        </button>
-        <button
-          v-else
-          class="success"
-          :disabled="!!busy"
-          :title="t('overview.startTooltip')"
-          @click="startService()"
-        >
-          <Loader2 v-if="serviceBusy" :size="14" class="spin" />
-          <Power v-else :size="14" />
-          {{ t('overview.startService') }}
-        </button>
-        <!-- 重新扫描只留图标：文字在这张卡片上抢不过启停按钮 -->
-        <button
-          class="ghost icon-only"
-          :disabled="scanning"
-          :aria-label="t('client.rescan')"
-          :title="scanning ? t('client.scanning') : t('client.rescan')"
-          @click="scanClients()"
-        >
-          <RefreshCw :size="15" :class="{ spin: scanning }" />
-        </button>
-      </div>
-    </div>
-
     <div class="sources">
       <button
         v-for="option in SOURCE_OPTIONS"
@@ -404,26 +359,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 头部右侧：启停按钮在前，扫描图标在后，图标按钮不吃多余宽度 */
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-
-.head-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* 三张来源卡片用响应式网格均分；窄窗口自动减少列数 */
 .sources {
   display: grid;
@@ -549,16 +484,5 @@ onMounted(() => {
 
 .verdict .dot {
   background: currentColor;
-}
-
-/* 扫描图标转起来：不加这个动画用户会以为"没反应" */
-.spin {
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

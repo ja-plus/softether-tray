@@ -9,6 +9,7 @@ import {
   LogOut,
   Package,
   Plug,
+  Route,
   Settings as SettingsIcon,
 } from 'lucide-vue-next'
 import OverviewTab from './components/OverviewTab.vue'
@@ -16,15 +17,19 @@ import ProfilesTab from './components/ProfilesTab.vue'
 import DiagnosticsTab from './components/DiagnosticsTab.vue'
 import ClientTab from './components/ClientTab.vue'
 import NicTab from './components/NicTab.vue'
+import RoutesTab from './components/RoutesTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
 import TitleBar from './components/TitleBar.vue'
 import ResizeEdges from './components/ResizeEdges.vue'
 import { bootstrap, overview } from './lib/api'
+import { confirmDialog } from './lib/dialog'
 import { t } from './lib/i18n'
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 
-const tab = ref<'overview' | 'profiles' | 'diag' | 'client' | 'nic' | 'settings'>('overview')
+const tab = ref<'overview' | 'profiles' | 'diag' | 'client' | 'nic' | 'routes' | 'settings'>('overview')
 const ready = ref(false)
+const appVersion = ref('')
 
 onMounted(async () => {
   try {
@@ -38,9 +43,21 @@ onMounted(async () => {
   } catch {
     // 托盘菜单不可用时仅失去跳转能力，不影响界面
   }
+  try {
+    appVersion.value = await getVersion()
+  } catch {
+    // 非 Tauri 环境（浏览器预览）没有版本信息，显示留空即可
+  }
 })
 
 async function quit() {
+  const ok = await confirmDialog({
+    title: t('app.quitTitle'),
+    body: t('app.quitBody'),
+    confirmText: t('app.quit'),
+    danger: true,
+  })
+  if (!ok) return
   await invoke('quit_app')
 }
 </script>
@@ -75,11 +92,17 @@ async function quit() {
           <button :class="{ active: tab === 'nic' }" @click="tab = 'nic'">
             <EthernetPort :size="15" /> {{ t('app.nav.nic') }}
           </button>
+          <!-- 隧道与路由原来也是「设置」里的卡片：它决定哪些网段走 VPN，
+               和客户端、适配器一样属于运行行为，不是界面偏好 -->
+          <button :class="{ active: tab === 'routes' }" @click="tab = 'routes'">
+            <Route :size="15" /> {{ t('app.nav.routes') }}
+          </button>
           <button :class="{ active: tab === 'settings' }" @click="tab = 'settings'">
             <SettingsIcon :size="15" /> {{ t('app.nav.settings') }}
           </button>
         </nav>
         <div class="side-foot">
+          <span v-if="appVersion" class="version">SoftEther Tray v{{ appVersion }}</span>
           <button class="ghost small" @click="quit"><LogOut :size="13" /> {{ t('app.quit') }}</button>
         </div>
       </aside>
@@ -90,6 +113,7 @@ async function quit() {
         <DiagnosticsTab v-else-if="ready && tab === 'diag'" />
         <ClientTab v-else-if="ready && tab === 'client'" />
         <NicTab v-else-if="ready && tab === 'nic'" />
+        <RoutesTab v-else-if="ready && tab === 'routes'" />
         <SettingsTab v-else-if="ready && tab === 'settings'" />
       </main>
     </div>
@@ -214,6 +238,17 @@ nav button.active::before {
   flex-direction: column;
   gap: 8px;
   flex: 0 0 auto;
+}
+
+.side-foot .version {
+  padding: 0 2px;
+  font-size: 11px;
+  color: var(--text-hint);
+  /* 版本号要能选中复制，反馈问题时用得上 */
+  user-select: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .side-foot button.small {

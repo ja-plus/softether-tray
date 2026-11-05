@@ -55,8 +55,9 @@ pub struct Settings {
     pub active_account: Option<String>,
     #[serde(default = "default_true")]
     pub notifications: bool,
+    /// 关闭主窗口时最小化到托盘；关闭后窗口关闭即退出应用
     #[serde(default = "default_true")]
-    pub start_minimized: bool,
+    pub minimize_on_close: bool,
     #[serde(default)]
     pub diag_target: String,
     #[serde(default)]
@@ -167,7 +168,7 @@ impl Default for Settings {
             vpncmd_path: None,
             active_account: default_account(),
             notifications: true,
-            start_minimized: true,
+            minimize_on_close: true,
             // 不预置任何地址：内网目标因人而异，写死一个只会让别人的诊断打到一个
             // 与他无关的地址上。留空由前端回落到当前隧道网关（`interface_gateway`）。
             diag_target: String::new(),

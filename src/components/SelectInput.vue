@@ -56,6 +56,21 @@ function selectedIndex(): number {
   return props.options.findIndex((option) => option.value === model.value)
 }
 
+/**
+ * 弹层挂在 body 上，所以层级得自己算：Arco 弹窗的内联 z-index（1001 起）
+ * 远高于写死的 60，不抬上去的话下拉会藏在遮罩后面、看起来像"点了没反应"。
+ */
+function popZIndex(): number {
+  let base = 60
+  let node = trigger.value?.parentElement ?? null
+  while (node) {
+    const z = Number(getComputedStyle(node).zIndex)
+    if (Number.isFinite(z) && z > base) base = z
+    node = node.parentElement
+  }
+  return base + 1
+}
+
 /** 弹层用 fixed 传送到 body：放在表单里也不会被对话框的滚动容器裁掉 */
 function positionPop() {
   const rect = trigger.value?.getBoundingClientRect()
@@ -71,6 +86,7 @@ function positionPop() {
     left: `${rect.left}px`,
     width: `${rect.width}px`,
     'max-height': `${max}px`,
+    'z-index': String(popZIndex()),
     ...(flip ? { bottom: `${window.innerHeight - rect.top + gap}px` } : { top: `${rect.bottom + gap}px` }),
   }
 }

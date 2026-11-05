@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Loader2, Plus, Power, Trash2 } from 'lucide-vue-next'
-import { confirmDialog } from '../../lib/dialog'
-import { overview, refresh, showToast, type NicInfo } from '../../lib/api'
+import { Loader2, Power, Trash2 } from 'lucide-vue-next'
+import { confirmDialog, nameDialog } from '../../lib/dialog'
+import { DEFAULT_NIC_NAME, nextNicName, overview, refresh, showToast, type NicInfo } from '../../lib/api'
 import { t } from '../../lib/i18n'
-import InfoTip from '../InfoTip.vue'
 
 /**
  * 虚拟网络适配器管理。
@@ -27,12 +26,8 @@ const serviceReady = computed(
   () => !!overview.value?.serviceRunning && !!overview.value?.vpncmdReady,
 )
 
-const newName = ref('')
-const creating = ref(false)
 /** 正在操作的那张网卡（禁用/启用/删除），用于只锁对应行 */
 const pending = ref<string | null>(null)
-
-const canCreate = computed(() => !!newName.value.trim() && !creating.value && serviceReady.value)
 
 /** 只替换 nics 字段。overview 为 null 时（首屏还没到）什么都不做，别把整个对象弄坏 */
 function applyNics(list: NicInfo[]) {
@@ -40,24 +35,39 @@ function applyNics(list: NicInfo[]) {
   overview.value = { ...overview.value, nics: list }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 设置页没有轮询，进页面时主动读一次，别拿启动时的旧清单
-  void refresh().catch(() => {})
+  try {
+    await refresh()
+  } catch {
+    // 读不到列表时保留默认值，创建失败会由后端给出真实原因
+  }
 })
 
+/** 点右上角「创建」才弹命名小窗；与新建连接配置共用同一个弹窗 */
 async function create() {
-  const name = newName.value.trim()
-  if (!name) return
-  creating.value = true
-  try {
-    applyNics(await invoke<NicInfo[]>('create_nic', { name }))
-    newName.value = ''
-    showToast(t('nic.created', { name }))
-  } catch (error) {
-    showToast(String(error), true)
-  } finally {
-    creating.value = false
-  }
+  await nameDialog({
+    title: t('nic.newTitle'),
+    label: t('nic.nameLabel'),
+    placeholder: t('nic.newPlaceholder'),
+    hint: t('nic.nameHint'),
+    initialValue: nextNicName(DEFAULT_NIC_NAME, nics.value.map((nic) => nic.name)),
+    onSubmit: async (typed) => {
+      // 手动输入的名字也可能撞名（列表可能没刷新）：撞了就按顺序改成 base2、base3…
+      const taken = nics.value.map((nic) => nic.name)
+      const name = taken.some((item) => item.trim().toLowerCase() === typed.toLowerCase())
+        ? nextNicName(typed, taken)
+        : typed
+      try {
+        applyNics(await invoke<NicInfo[]>('create_nic', { name }))
+        showToast(t('nic.created', { name }))
+        return true
+      } catch (error) {
+        showToast(String(error), true)
+        return false
+      }
+    },
+  })
 }
 
 async function toggle(nic: NicInfo) {
@@ -93,17 +103,14 @@ async function askDelete(name: string) {
     pending.value = null
   }
 }
+
+// 「新建」按钮按页面统一布局放在页头（右侧操作区），逻辑仍留在这张卡片里：
+// 命名、重名处理都要看当前清单，搬出去只会让两处各拿一份 nics。
+defineExpose({ create })
 </script>
 
 <template>
   <div class="card block">
-    <div class="row-between">
-      <div class="title-line">
-        <h2>{{ t('nic.title') }}</h2>
-        <InfoTip :text="t('nic.intro')" />
-      </div>
-    </div>
-
     <!-- 空状态要说清后果：没有适配器时新建的连接配置绑不上网卡。
          客户端没跑时列表必然为空，这时说的是另一件事（去启动服务）。 -->
     <p v-if="!serviceReady" class="hint empty">{{ t('nic.needService') }}</p>
@@ -136,31 +143,10 @@ async function askDelete(name: string) {
         </div>
       </li>
     </ul>
-
-    <div class="row nic-create">
-      <input
-        v-model="newName"
-        type="text"
-        :placeholder="t('nic.newPlaceholder')"
-        @keyup.enter="create"
-      />
-      <button class="primary" :disabled="!canCreate" :title="serviceReady ? undefined : t('nic.needService')" @click="create">
-        <Loader2 v-if="creating" :size="13" class="spin" />
-        <Plus v-else :size="13" />
-        {{ t('nic.create') }}
-      </button>
-    </div>
-    <p class="hint" style="margin: 6px 0 0">{{ t('nic.nameHint') }}</p>
   </div>
 </template>
 
 <style scoped>
-.title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .nic-list {
   list-style: none;
   margin: 0;
@@ -203,24 +189,6 @@ async function askDelete(name: string) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.nic-create {
-  margin-top: 12px;
-  align-items: center;
-  gap: 8px;
-}
-
-.nic-create input {
-  flex: 1;
-  max-width: 260px;
-}
-
-.nic-create button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
 }
 
 .empty {

@@ -218,7 +218,7 @@ Check in this order:
 6. **Note**: if `/home/<you>` has mode `drwxr-x---` (the default on many distributions), polkitd cannot enter the home directory, so anything under `~/.config/polkit-1/` **has no effect**; it must be installed with `sudo` into system directories — which is what this installer does.
 
 **Connected, but the intranet is unreachable**
-Look at the subnet list in "Settings → Tunnel & routes" first. Only subnets in the list go through the VPN; intranet subnets not in the list must be added yourself.
+Look at the subnet list on the "Tunnels & routes" page first. Only subnets in the list go through the VPN; intranet subnets not in the list must be added yourself.
 
 **Packet loss, stutter**
 Test the target address in "Network diagnostics" first, then narrow it down in this order:

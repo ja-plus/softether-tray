@@ -9,8 +9,9 @@ import { locale } from '../lib/i18n'
  * `update:xxx` 事件，所以这里用 provide/inject 共享同一个 reactive 对象：
  * 卡片只管改自己的字段，落盘交给 useAutoSave 统一处理。
  *
- * 目前有两个提供方：`SettingsTab`（语言/样式/默认/路由/诊断五张卡）和
- * `ClientTab`（客户端目录）。provide 必须在**卡片的直接父组件**里做。
+ * 目前有三个提供方：`SettingsTab`（语言/样式/默认/诊断四张卡）、
+ * `RoutesTab`（隧道与路由）和 `ClientTab`（客户端目录）。
+ * provide 必须在**卡片的直接父组件**里做。
  */
 
 /** 默认网段：RFC1918 三段全下，绝大多数内网都落在这三个里 */
@@ -29,7 +30,7 @@ export function createSettingsDraft(): Settings {
     vpncmdPath: null,
     activeAccount: null,
     notifications: true,
-    startMinimized: true,
+    minimizeOnClose: true,
     diagTarget: '',
     routes: { subnets: [...DEFAULT_SUBNETS], autoConnect: false, dhcp: true, mtu: DEFAULT_MTU },
     startClientOnLaunch: true,
@@ -48,6 +49,6 @@ export function provideSettingsDraft(draft: Settings) {
 /** 取当前页面的草稿；没有 provide 就直接报错，免得拿到 undefined 静默失效 */
 export function useSettingsDraft(): Settings {
   const draft = inject(DRAFT_KEY)
-  if (!draft) throw new Error('useSettingsDraft() 只能在 SettingsTab / ClientTab 的子组件里调用')
+  if (!draft) throw new Error('useSettingsDraft() 只能在 SettingsTab / RoutesTab / ClientTab 的子组件里调用')
   return draft
 }

@@ -17,7 +17,7 @@ A SoftEther VPN client that lives in the Linux system tray. The official SoftEth
 - Interface styles: Windows 11 (Fluent), Deepin 25, and macOS, previewed live in Settings
 - Bilingual interface: Simplified Chinese and English, switchable in Settings; on first launch it follows the system locale (Chinese for mainland China, English elsewhere)
 - Choose the SoftEther client directory: bundled, auto-detected, or a custom path
-- Custom title bar (no system decoration): drag to move, double-click to maximize, edge resizing; the close button still hides to tray
+- Custom title bar (no system decoration): drag to move, double-click to maximize, edge resizing; the close button hides to tray by default (configurable to quit instead)
 
 ## The two gaps it fills
 

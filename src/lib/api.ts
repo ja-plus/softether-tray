@@ -95,7 +95,8 @@ export interface Settings {
   vpncmdPath: string | null
   activeAccount: string | null
   notifications: boolean
-  startMinimized: boolean
+  /** 关闭主窗口时最小化到托盘；关闭后关窗即退出应用 */
+  minimizeOnClose: boolean
   diagTarget: string
   routes: RouteConfig
   /** 应用启动时自动启动 SoftEther 客户端 */
@@ -432,6 +433,24 @@ export async function bootstrap() {
     }),
     listen<string>('action-error', (event) => showToast(event.payload, true)),
   ])
+}
+
+/** 新建虚拟适配器时预填的名字；撞名后自动追加序号（softether、softether2…） */
+export const DEFAULT_NIC_NAME = 'softether'
+
+/**
+ * 在现有适配器名里挑一个不冲突的名字：原名可用就用原名，否则按顺序试 base2、base3…
+ *
+ * SoftEther 的适配器名不保证大小写敏感，统一按小写比较，免得 `VPN` 和 `vpn`
+ * 被客户端当成同一个、但界面上却判断为"不重复"。
+ */
+export function nextNicName(base: string, existing: string[]): string {
+  const root = base.trim() || DEFAULT_NIC_NAME
+  const taken = new Set(existing.map((name) => name.trim().toLowerCase()))
+  if (!taken.has(root.toLowerCase())) return root
+  let index = 2
+  while (taken.has(`${root}${index}`.toLowerCase())) index += 1
+  return `${root}${index}`
 }
 
 export function formatBytes(value: number): string {

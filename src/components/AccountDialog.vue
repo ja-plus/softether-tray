@@ -9,6 +9,8 @@ import NumberInput from './NumberInput.vue'
 import InfoTip from './InfoTip.vue'
 import {
   busy,
+  DEFAULT_NIC_NAME,
+  nextNicName,
   overview,
   run,
   showToast,
@@ -17,6 +19,7 @@ import {
   type Overview,
 } from '../lib/api'
 import { t } from '../lib/i18n'
+import { nameDialog } from '../lib/dialog'
 
 /**
  * 连接配置表单弹窗（Arco Modal 外壳）。
@@ -44,7 +47,6 @@ const form = reactive({
 })
 
 const loading = ref(!!props.name)
-const newNic = ref('')
 const saving = ref(false)
 /** 密码是否以明文显示（眼睛按钮切换） */
 const showPassword = ref(false)
@@ -126,18 +128,30 @@ async function save(): Promise<boolean> {
   }
 }
 
+/** 点「创建」才弹命名小窗，输入名字确认后才真正建网卡（与适配器页共用同一个弹窗） */
 async function addNic() {
-  const name = newNic.value.trim()
-  if (!name) return
-  const result = await run('nic', () => invoke<NicInfo[]>('create_nic', { name }))
-  if (result !== null) {
-    // 顺手把新的网卡列表写回总状态：设置页的适配器卡片读的就是它，
-    // 不写回会出现"这里建好了，那边列表还是空的"
-    if (overview.value) overview.value = { ...overview.value, nics: result }
-    form.nic = name
-    newNic.value = ''
-    showToast(t('account.nicCreated'))
-  }
+  await nameDialog({
+    title: t('nic.newTitle'),
+    label: t('nic.nameLabel'),
+    placeholder: t('nic.newPlaceholder'),
+    hint: t('nic.nameHint'),
+    initialValue: nextNicName(DEFAULT_NIC_NAME, (overview.value?.nics ?? []).map((nic) => nic.name)),
+    onSubmit: async (typed) => {
+      // 手动输入也可能撞名：撞了就按顺序改成 base2、base3…
+      const taken = (overview.value?.nics ?? []).map((nic) => nic.name)
+      const name = taken.some((item) => item.trim().toLowerCase() === typed.toLowerCase())
+        ? nextNicName(typed, taken)
+        : typed
+      const result = await run('nic', () => invoke<NicInfo[]>('create_nic', { name }))
+      if (result === null) return false
+      // 顺手把新的网卡列表写回总状态：设置页的适配器卡片读的就是它，
+      // 不写回会出现"这里建好了，那边列表还是空的"
+      if (overview.value) overview.value = { ...overview.value, nics: result }
+      form.nic = name
+      showToast(t('account.nicCreated'))
+      return true
+    },
+  })
 }
 </script>
 
@@ -146,6 +160,7 @@ async function addNic() {
     v-model:visible="visible"
     :title="title"
     :width="560"
+    modal-class="account-dialog"
     title-align="start"
     :mask-closable="false"
     :ok-text="saving ? t('common.saving') : t('common.save')"
@@ -217,7 +232,6 @@ async function addNic() {
             :placeholder="t('account.noNic')"
             style="flex: 1; min-width: 140px"
           />
-          <input v-model="newNic" type="text" :placeholder="t('account.newNicPlaceholder')" style="max-width: 140px" />
           <button class="ghost" :disabled="!!busy" @click="addNic"><Plus :size="14" /> {{ t('account.createNic') }}</button>
         </div>
       </div>
@@ -336,9 +350,10 @@ async function addNic() {
   color: var(--accent);
 }
 
-.switch {
+/* 三个勾选项并排：容器负责彼此间距，空间不足时整项换行 */
+.switches {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 18px;
   flex-wrap: wrap;
 }

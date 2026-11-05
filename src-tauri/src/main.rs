@@ -1724,11 +1724,20 @@ fn main() {
             }
             Ok(())
         })
-        // 托盘常驻：关窗口只隐藏，真正退出只走托盘菜单。
+        // 托盘常驻：默认关窗口只隐藏，真正退出走托盘菜单或界面里的「退出应用」。
+        // 设置里关掉「关闭窗口时最小化到托盘」时，关窗口就等同退出，收尾不能绕开
+        // shutdown_client，否则会留下仍在跑的客户端。
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                let app = window.app_handle();
+                let settings = state_settings(&app.state::<AppState>());
+                if settings.minimize_on_close {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    shutdown_client(app);
+                    app.exit(0);
+                }
             }
         })
         .run(tauri::generate_context!())

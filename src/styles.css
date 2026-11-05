@@ -736,6 +736,20 @@ input:focus {
   font-size: 13px;
 }
 
+/* 表单弹窗：内容超高时只在 body 里滚动，头和底部的按钮始终可见。
+   弹窗最高撑满窗口（100% 减去 Arco Modal 默认的 100px 顶部偏移）。 */
+.arco-modal.account-dialog {
+  display: inline-flex;
+  flex-direction: column;
+  max-height: calc(100% - 100px);
+}
+
+.arco-modal.account-dialog .arco-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .arco-modal-footer {
   border-top-color: var(--line);
 }

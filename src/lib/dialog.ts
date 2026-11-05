@@ -1,6 +1,7 @@
 import { createVNode, render, type Component } from 'vue'
 import AccountDialog from '../components/AccountDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import NameDialog from '../components/NameDialog.vue'
 
 /**
  * 弹窗的函数式调用入口。
@@ -35,14 +36,36 @@ export function openAccountDialog(name: string | null): Promise<boolean> {
   return mountDialog(AccountDialog, { name })
 }
 
+export interface NameDialogOptions {
+  title: string
+  label?: string
+  placeholder?: string
+  hint?: string
+  /** 打开时预填的值（通常是当前可用的建议名） */
+  initialValue?: string
+  /** 确认按钮文案；不传就用「创建」 */
+  confirmText?: string
+  /** 点确认时调用；返回 false 表示失败，小窗保持打开供修改后重试 */
+  onSubmit: (value: string) => Promise<boolean>
+}
+
+/**
+ * 单字段命名弹窗：新建连接配置里的「创建适配器」和适配器页的「创建」共用。
+ *
+ * 成功关闭 → 提交的名字；取消/关闭 → null。
+ */
+export function nameDialog(options: NameDialogOptions): Promise<string | null> {
+  return mountDialog<string | null>(NameDialog, { ...options })
+}
+
 /** 把弹窗组件挂到 body 上，等它的 close 事件拿到结果后卸载 */
-function mountDialog(component: Component, props: Record<string, unknown>): Promise<boolean> {
+function mountDialog<T>(component: Component, props: Record<string, unknown>): Promise<T> {
   return new Promise((resolve) => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const vnode = createVNode(component, {
       ...props,
-      onClose: (result: boolean) => {
+      onClose: (result: T) => {
         render(null, container)
         container.remove()
         resolve(result)

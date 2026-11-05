@@ -9,12 +9,11 @@ import { useAutoSave } from '../composables/useAutoSave'
 import LanguageSettings from './settings/LanguageSettings.vue'
 import StyleSettings from './settings/StyleSettings.vue'
 import DefaultsSettings from './settings/DefaultsSettings.vue'
-import RoutesSettings from './settings/RoutesSettings.vue'
 import DiagSettings from './settings/DiagSettings.vue'
 import InfoTip from './InfoTip.vue'
 
 /**
- * 设置页只负责三件事：造草稿、把草稿发给五张卡片、在底部挂保存状态。
+ * 设置页只负责三件事：造草稿、把草稿发给四张卡片、在底部挂保存状态。
  *
  * 各卡片自己读写草稿里属于自己的字段（provide/inject），
  * 落盘的时机与校验统一由 useAutoSave 决定，卡片不需要知道"保存"这回事。
@@ -55,7 +54,6 @@ onMounted(async () => {
       <LanguageSettings />
       <StyleSettings />
       <DefaultsSettings />
-      <RoutesSettings />
       <DiagSettings />
     </div>
 
