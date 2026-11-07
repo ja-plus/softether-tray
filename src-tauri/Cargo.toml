@@ -1,6 +1,6 @@
 [package]
 name = "softether-tray"
-version = "0.5.0"
+version = "0.5.1"
 description = "A Linux tray client for SoftEther VPN"
 edition = "2021"
 rust-version = "1.77.2"
@@ -38,6 +38,7 @@ notify-rust = "4"
 # 条件带 `not(feature = "ksni")`，所以只要 ksni 被启用就会切到真正的 SNI
 # 实现，它的 activate() 会派发 TrayIconEvent::Click{ button: Left, ... }。
 tray-icon = { version = "0.25", default-features = false, features = ["ksni", "serde"] }
+tauri-plugin-single-instance = "2"
 
 # vendor/tray-icon 是本项目对上游的补丁副本，只改了一处：ksni 后端补上 SNI 的
 # `IconName`（上游只发 IconPixmap，Deepin 的托盘不认，图标会整块消失）。

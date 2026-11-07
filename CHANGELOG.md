@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-07
+
+### Added
+
+- In-app updates: the version in the sidebar grows an arrow when a newer GitHub release is available. Clicking it downloads and verifies the package; installing can be postponed and done later without downloading again.
+- Launching the app again while it is already running (tray or launcher icon) now brings up the existing window instead of starting a second instance.
+
+### Changed
+
+- Status polling resolves the virtual adapter's IPv4 address once per refresh instead of running `ip` three times.
+- `curl` is now a package dependency, used for update checks and downloads.
+
+### Fixed
+
+- Connecting or disconnecting from the tray while another action is running no longer races over the same client; the second action reports that an operation is in progress.
+- A connection whose tunnel comes up without a usable virtual adapter now warns that subnet routes were not installed instead of reporting success.
+- Account names that look like command-line options are rejected before reaching `vpncmd`.
+- The no-root route check now distinguishes `DEAD` (route present, tunnel down) from `OK`, matching the privileged helper.
+- `Tools/install-sudoers.sh` no longer assumes a hard-coded home directory and accepts the `vpnclient` path as an argument.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added
