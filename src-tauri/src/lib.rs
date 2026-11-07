@@ -4,4 +4,5 @@ pub mod i18n;
 pub mod settings;
 pub mod sha0;
 pub mod softether;
+pub mod update;
 pub mod vpn;

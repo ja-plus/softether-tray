@@ -751,25 +751,33 @@ pub fn interface_ipv4(iface: &str) -> Option<String> {
     text.split_whitespace().skip_while(|token| *token != "inet").nth(1).map(|s| s.to_string())
 }
 
-/// 一次问出所有带 IPv4 的网卡。
+/// 一次问出所有网卡的 IPv4 地址（网卡名, CIDR）。
 ///
-/// 挑虚拟网卡时要判断"哪块真有地址"，按网卡逐个调 `interface_ipv4` 就是 N 次
-/// fork，而这条路每 2 秒走一遍轮询。一次 `ip -4 -o addr show` 全问清楚。
-pub fn interfaces_with_ipv4() -> Vec<String> {
+/// 轮询路径既要用它判断"哪块网卡有地址"，又要取当前网卡的地址。拆成两次
+/// `ip` 调用就是每 2 秒多 fork 一次——一次 `ip -4 -o addr show` 全问清楚。
+pub fn ipv4_addresses() -> Vec<(String, String)> {
     let Ok(output) = Command::new("ip").args(["-4", "-o", "addr", "show"]).output() else {
         return Vec::new();
     };
-    parse_interfaces_with_ipv4(&String::from_utf8_lossy(&output.stdout))
+    parse_ipv4_addresses(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// `interfaces_with_ipv4` 的解析层，单拎出来可测。
+/// `ipv4_addresses` 的解析层，单拎出来可测。
 ///
 /// 行形态：`58: vpn_vpn    inet 192.168.50.24/24 brd ...`——网卡名是第二个字段。
-fn parse_interfaces_with_ipv4(output: &str) -> Vec<String> {
+fn parse_ipv4_addresses(output: &str) -> Vec<(String, String)> {
     output
         .lines()
         .filter(|line| line.contains(" inet "))
-        .filter_map(|line| line.split_whitespace().nth(1).map(str::to_string))
+        .filter_map(|line| {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            let name = fields.get(1)?;
+            let addr = fields
+                .iter()
+                .position(|field| *field == "inet")
+                .and_then(|at| fields.get(at + 1))?;
+            Some((name.to_string(), addr.to_string()))
+        })
         .collect()
 }
 
@@ -1089,14 +1097,18 @@ mod tests {
     }
 
     #[test]
-    fn interfaces_with_ipv4_parses_ip_output() {
+    fn ipv4_addresses_parses_ip_output() {
         // `ip -4 -o addr show` 的真实形态：网卡名是第二个字段
         let output = "1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever\n\
                       58: vpn_vpn    inet 192.168.50.24/24 brd 192.168.50.255 scope global vpn_vpn\n\
                       57: vpn_tet-test: <BROADCAST,MULTICAST,UP> mtu 1500\n";
         assert_eq!(
-            parse_interfaces_with_ipv4(output),
-            ["lo".to_string(), "vpn_vpn".to_string()].to_vec()
+            parse_ipv4_addresses(output),
+            [
+                ("lo".to_string(), "127.0.0.1/8".to_string()),
+                ("vpn_vpn".to_string(), "192.168.50.24/24".to_string()),
+            ]
+            .to_vec()
         );
     }
 

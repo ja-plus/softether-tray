@@ -17,6 +17,8 @@ const props = defineProps<{
   body: string
   /** 确认按钮文案；不传就用「确定」 */
   confirmText?: string
+  /** 取消按钮文案；不传就用「取消」 */
+  cancelText?: string
   /** true 时确认按钮用危险色：会中断当前动作的操作都该是红的 */
   danger?: boolean
 }>()
@@ -39,7 +41,7 @@ const okButtonProps = computed<ButtonProps | undefined>(() =>
     :width="420"
     title-align="start"
     :ok-text="confirmText ?? t('common.confirm')"
-    :cancel-text="t('common.cancel')"
+    :cancel-text="cancelText ?? t('common.cancel')"
     :ok-button-props="okButtonProps"
     @ok="result = true"
     @close="emit('close', result)"

@@ -540,3 +540,29 @@ export function localizeFlag(value?: string | null): string {
   if (text.startsWith('已禁用')) return t('common.disabled') + localizeSuffix(text.slice(3))
   return text
 }
+
+/** 自动更新状态（与 Rust 侧 camelCase 序列化一致） */
+export interface UpdateStatus {
+  currentVersion: string
+  latestVersion: string | null
+  available: boolean
+  downloaded: boolean
+  assetName: string | null
+  assetSize: number
+  error: string | null
+}
+
+/** 查一次 GitHub 最新版本；启动时失败静默处理 */
+export function checkUpdate(): Promise<UpdateStatus> {
+  return invoke<UpdateStatus>('check_update')
+}
+
+/** 下载最新版安装包；resolve 后 downloaded=true 即可提示安装 */
+export function downloadUpdate(): Promise<UpdateStatus> {
+  return invoke<UpdateStatus>('download_update')
+}
+
+/** 安装已下载的包；成功时应用会直接退出，因此这个调用可能不会 resolve */
+export function installUpdate(): Promise<void> {
+  return invoke<void>('install_update')
+}

@@ -350,8 +350,11 @@ pub fn pick_iface(
     candidates.first().map(|candidate| candidate.name.clone())
 }
 
-/// 扫一遍 `/sys/class/net` 里的虚拟网卡；有没有 IPv4 用一次 `ip` 调用统一问。
-fn iface_candidates() -> Vec<IfaceCandidate> {
+/// 扫一遍 `/sys/class/net` 里的虚拟网卡。
+///
+/// 有没有 IPv4 由调用方一次性问好传进来：轮询路径每 2 秒走一遍，
+/// 这里再 fork 一次 `ip` 就重复了（地址本身也是调用方要用的）。
+fn iface_candidates(ipv4: &[(String, String)]) -> Vec<IfaceCandidate> {
     let Ok(entries) = std::fs::read_dir("/sys/class/net") else {
         return Vec::new();
     };
@@ -361,11 +364,10 @@ fn iface_candidates() -> Vec<IfaceCandidate> {
         .filter(|name| name.starts_with("vpn_"))
         .collect();
     names.sort();
-    let with_addr = settings::interfaces_with_ipv4();
     names
         .into_iter()
         .map(|name| IfaceCandidate {
-            has_ipv4: with_addr.contains(&name),
+            has_ipv4: ipv4.iter().any(|(candidate, _)| candidate == &name),
             mac: std::fs::read_to_string(format!("/sys/class/net/{name}/address"))
                 .map(|text| normalize_mac(&text))
                 .unwrap_or_default(),
@@ -378,8 +380,12 @@ fn iface_candidates() -> Vec<IfaceCandidate> {
 ///
 /// 有账户/网卡清单时按「账户 → 适配器 → 设备」认（见 `pick_iface`）；
 /// 清单为空（客户端没跑、vpncmd 不可用）时退化成"唯一有地址的那块 / 字典序第一"。
-pub fn detect_iface(accounts: &[AccountSummary], nics: &[NicInfo]) -> Option<String> {
-    let candidates = iface_candidates();
+pub fn detect_iface(
+    accounts: &[AccountSummary],
+    nics: &[NicInfo],
+    ipv4: &[(String, String)],
+) -> Option<String> {
+    let candidates = iface_candidates(ipv4);
     if candidates.is_empty() {
         return None;
     }
@@ -417,7 +423,9 @@ fn build_overview(settings: &Settings, fresh: bool) -> Overview {
     };
     // 网卡要在拿到账户清单之后才认：设备名必须和"哪个账户连着"对上，
     // 机器上可能同时存在多块 tap（见 `pick_iface` 的说明）。
-    let iface = detect_iface(&accounts, &nics);
+    // 地址只问一次：选网卡和填 `iface_ipv4` 共用同一份结果。
+    let ipv4 = settings::ipv4_addresses();
+    let iface = detect_iface(&accounts, &nics, &ipv4);
 
     let routes = iface.as_deref().map(settings::routes_on).unwrap_or_default();
     let (link_rx_bytes, link_tx_bytes) = iface.as_deref().and_then(link_counters).unwrap_or((0, 0));
@@ -443,7 +451,11 @@ fn build_overview(settings: &Settings, fresh: bool) -> Overview {
 
     Overview {
         service_running: running,
-        iface_ipv4: iface.as_deref().and_then(settings::interface_ipv4),
+        iface_ipv4: iface.as_deref().and_then(|name| {
+            ipv4.iter()
+                .find(|(candidate, _)| candidate == name)
+                .map(|(_, addr)| addr.clone())
+        }),
         iface_mtu: iface.as_deref().and_then(settings::interface_mtu),
         iface,
         accounts,

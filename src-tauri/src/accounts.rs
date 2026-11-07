@@ -29,7 +29,9 @@ pub struct AccountInput {
     pub half_connection: bool,
 }
 
-fn validate_name(name: &str) -> Result<(), String> {
+/// 配置名的校验。保存、连接、断开都走同一套：vpncmd 会把以 `/` 或 `-`
+/// 开头的参数当成自己的选项，而不是账户名，所以这两个前缀必须挡住。
+pub fn validate_name(name: &str) -> Result<(), String> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > 64 {
         return Err(crate::i18n::tr(
@@ -38,10 +40,10 @@ fn validate_name(name: &str) -> Result<(), String> {
         )
         .into());
     }
-    if name.starts_with('-') || name.chars().any(|c| c.is_control()) {
+    if name.starts_with('-') || name.starts_with('/') || name.chars().any(|c| c.is_control()) {
         return Err(crate::i18n::tr(
-            "配置名称不能以 - 开头，也不能包含控制字符",
-            "The profile name cannot start with - or contain control characters.",
+            "配置名称不能以 - 或 / 开头，也不能包含控制字符",
+            "The profile name cannot start with - or / or contain control characters.",
         )
         .into());
     }
@@ -389,4 +391,18 @@ pub fn ping(host: &str, count: u32) -> Result<crate::softether::DiagResult, Stri
         })?;
     let text = String::from_utf8_lossy(&output.stdout).to_string();
     Ok(crate::softether::parse_ping(host, &text))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_name;
+
+    #[test]
+    fn rejects_names_vpncmd_would_treat_as_options() {
+        // vpncmd 把 / 和 - 开头的值当成自己的参数，而不是账户名
+        assert!(validate_name("/PASSWORD:x").is_err());
+        assert!(validate_name("-cmd").is_err());
+        assert!(validate_name("").is_err());
+        assert!(validate_name("normal name").is_ok());
+    }
 }

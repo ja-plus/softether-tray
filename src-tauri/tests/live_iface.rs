@@ -12,6 +12,7 @@ fn live_detect_iface() {
         hub: "tracyhz".into(),
         nic: "VPN".into(),
     }];
-    println!("detected = {:?}", vpn::detect_iface(&accounts, &[]));
-    assert_eq!(vpn::detect_iface(&accounts, &[]).as_deref(), Some("vpn_vpn"));
+    let ipv4 = softether_tray_lib::settings::ipv4_addresses();
+    println!("detected = {:?}", vpn::detect_iface(&accounts, &[], &ipv4));
+    assert_eq!(vpn::detect_iface(&accounts, &[], &ipv4).as_deref(), Some("vpn_vpn"));
 }

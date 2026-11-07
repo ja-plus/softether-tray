@@ -2,11 +2,11 @@
 # 安装 sudoers 白名单，让 softether-tray 免密启停 SoftEther 客户端。
 #
 # 只放开 vpnclient start / stop 两个参数组合，不放开任意命令。
+# 用法：sudo bash Tools/install-sudoers.sh [/path/to/vpnclient]
 # 卸载：sudo bash Tools/install-sudoers.sh --remove
 set -euo pipefail
 
 RULE_FILE=/etc/sudoers.d/softether-tray
-VPNCLIENT="$(readlink -f /home/cja/Downloads/vpnclient/vpnclient 2>/dev/null || true)"
 
 if [[ "${1:-}" == "--remove" ]]; then
   rm -f "$RULE_FILE"
@@ -14,8 +14,33 @@ if [[ "${1:-}" == "--remove" ]]; then
   exit 0
 fi
 
+# 路径优先用命令行参数；没给就在常见安装位置里找。
+# 这里刻意不写死任何人的家目录——脚本是给别人用的。
+VPNCLIENT="${1:-}"
+
+if [[ -z "$VPNCLIENT" ]]; then
+  # sudo 会把 HOME 换成 /root，用 SUDO_USER 找回真正调用者的家目录
+  CALLER_HOME="$(getent passwd "${SUDO_USER:-${USER:-root}}" | cut -d: -f6 2>/dev/null || true)"
+  candidates=()
+  if [[ -n "$CALLER_HOME" ]]; then
+    candidates+=("$CALLER_HOME/Downloads/vpnclient/vpnclient" "$CALLER_HOME/vpnclient/vpnclient")
+  fi
+  candidates+=(/usr/local/vpnclient/vpnclient /opt/vpnclient/vpnclient /usr/lib/softether-tray/client/vpnclient)
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      VPNCLIENT="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -n "$VPNCLIENT" ]]; then
+  VPNCLIENT="$(readlink -f "$VPNCLIENT" 2>/dev/null || true)"
+fi
+
 if [[ -z "$VPNCLIENT" || ! -x "$VPNCLIENT" ]]; then
-  echo "找不到 vpnclient 可执行文件，请先在设置里指定客户端目录" >&2
+  echo "找不到 vpnclient，请把它的完整路径作为参数传进来：" >&2
+  echo "  sudo bash Tools/install-sudoers.sh /path/to/vpnclient" >&2
   exit 1
 fi
 

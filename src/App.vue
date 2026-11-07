@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import {
   Activity,
+  ArrowUp,
   EthernetPort,
   Layers,
   LayoutList,
+  Loader2,
   LogOut,
   Package,
   Plug,
@@ -21,7 +23,15 @@ import RoutesTab from './components/RoutesTab.vue'
 import SettingsTab from './components/SettingsTab.vue'
 import TitleBar from './components/TitleBar.vue'
 import ResizeEdges from './components/ResizeEdges.vue'
-import { bootstrap, overview } from './lib/api'
+import {
+  bootstrap,
+  checkUpdate,
+  downloadUpdate,
+  installUpdate,
+  overview,
+  showToast,
+  type UpdateStatus,
+} from './lib/api'
 import { confirmDialog } from './lib/dialog'
 import { t } from './lib/i18n'
 import { invoke } from '@tauri-apps/api/core'
@@ -30,6 +40,19 @@ import { getVersion } from '@tauri-apps/api/app'
 const tab = ref<'overview' | 'profiles' | 'diag' | 'client' | 'nic' | 'routes' | 'settings'>('overview')
 const ready = ref(false)
 const appVersion = ref('')
+const update = ref<UpdateStatus | null>(null)
+const updateBusy = ref<'idle' | 'downloading' | 'installing'>('idle')
+
+const updateTooltip = computed(() => {
+  const state = update.value
+  if (!state?.available) return ''
+  const version = state.latestVersion ?? ''
+  if (updateBusy.value === 'downloading') return t('update.downloading', { version })
+  if (updateBusy.value === 'installing') return t('update.installing')
+  return state.downloaded
+    ? t('update.tooltipDownloaded', { version })
+    : t('update.tooltipAvailable', { version })
+})
 
 onMounted(async () => {
   try {
@@ -48,7 +71,66 @@ onMounted(async () => {
   } catch {
     // 非 Tauri 环境（浏览器预览）没有版本信息，显示留空即可
   }
+  // 启动时静默检查一次；失败不打扰用户，也不影响其它功能
+  void checkForUpdate()
 })
+
+async function checkForUpdate() {
+  try {
+    update.value = await checkUpdate()
+  } catch {
+    // 网络不可用或仓库暂时不可达：保持无箭头状态
+  }
+}
+
+function errorText(error: unknown): string {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+async function onUpdateClick() {
+  const state = update.value
+  if (!state?.available || updateBusy.value !== 'idle') return
+  // 之前已经下好：直接问是否安装
+  if (state.downloaded) {
+    await promptInstall()
+    return
+  }
+
+  updateBusy.value = 'downloading'
+  try {
+    update.value = await downloadUpdate()
+  } catch (error) {
+    showToast(`${t('update.downloadFailed')} · ${errorText(error)}`, true)
+    return
+  } finally {
+    updateBusy.value = 'idle'
+  }
+  // 下载完立刻问一次；用户点「稍后」箭头会留着，下次点击直接安装
+  if (update.value?.downloaded) await promptInstall()
+}
+
+async function promptInstall() {
+  const version = update.value?.latestVersion ?? ''
+  const ok = await confirmDialog({
+    title: t('update.readyTitle'),
+    body: t('update.readyBody', { version }),
+    confirmText: t('update.installNow'),
+    cancelText: t('update.later'),
+    danger: true,
+  })
+  if (!ok) return
+
+  updateBusy.value = 'installing'
+  try {
+    await installUpdate()
+    // 安装成功后应用会直接退出，正常走不到这里
+  } catch (error) {
+    updateBusy.value = 'idle'
+    showToast(`${t('update.installFailed')} · ${errorText(error)}`, true)
+  }
+}
 
 async function quit() {
   const ok = await confirmDialog({
@@ -102,7 +184,21 @@ async function quit() {
           </button>
         </nav>
         <div class="side-foot">
-          <span v-if="appVersion" class="version">SoftEther Tray v{{ appVersion }}</span>
+          <div v-if="appVersion" class="version-row">
+            <span class="version">SoftEther Tray v{{ appVersion }}</span>
+            <button
+              v-if="update?.available"
+              class="update-arrow"
+              :class="{ downloaded: update.downloaded }"
+              :title="updateTooltip"
+              :aria-label="updateTooltip"
+              :disabled="updateBusy !== 'idle'"
+              @click="onUpdateClick"
+            >
+              <Loader2 v-if="updateBusy !== 'idle'" class="spin" :size="13" />
+              <ArrowUp v-else :size="13" />
+            </button>
+          </div>
           <button class="ghost small" @click="quit"><LogOut :size="13" /> {{ t('app.quit') }}</button>
         </div>
       </aside>
@@ -240,8 +336,14 @@ nav button.active::before {
   flex: 0 0 auto;
 }
 
-.side-foot .version {
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 2px;
+}
+
+.side-foot .version {
   font-size: 11px;
   color: var(--text-hint);
   /* 版本号要能选中复制，反馈问题时用得上 */
@@ -249,6 +351,47 @@ nav button.active::before {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 版本号旁的更新入口：小圆点箭头，下载完成后变成强调色提示可安装 */
+.update-arrow {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0.5px solid var(--warn-line);
+  background: var(--warn-soft);
+  color: var(--warn);
+  cursor: pointer;
+}
+
+.update-arrow:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.update-arrow.downloaded {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.update-arrow:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .side-foot button.small {

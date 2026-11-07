@@ -15,6 +15,7 @@ use softether_tray_lib::accounts::{self, AccountInput};
 use softether_tray_lib::client_dir::{self, ClientCandidate};
 use softether_tray_lib::settings::{self, Settings};
 use softether_tray_lib::softether::{AccountDetail, DiagResult, NicInfo};
+use softether_tray_lib::update::{self, UpdateStatus};
 use softether_tray_lib::vpn::{self, Overview};
 
 struct AppState {
@@ -27,8 +28,41 @@ struct AppState {
 static TERMINATION_REQUESTED: AtomicBool = AtomicBool::new(false);
 static SHUTDOWN_STARTED: AtomicBool = AtomicBool::new(false);
 
+/// 同一时刻只允许一个会动客户端或配置的动作。
+///
+/// 托盘菜单不经过前端的 busy 守卫：用户完全可能一边在界面里点连接、一边从
+/// 托盘点断开，两条 vpncmd 会抢同一个客户端实例，收尾时还会用旧状态覆盖新状态。
+static OPERATION_LOCK: Mutex<()> = Mutex::new(());
+
+/// 拿不到锁说明另一个动作正在跑。排队没有意义：连接最长要等 30 秒，
+/// 用户只会以为自己的点击丢了。
+fn begin_operation() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    OPERATION_LOCK.try_lock().map_err(|_| {
+        softether_tray_lib::i18n::tr(
+            "另一个操作正在进行，请稍候再试",
+            "Another operation is in progress; try again in a moment.",
+        )
+        .to_string()
+    })
+}
+
 extern "C" fn termination_signal_handler(_: libc::c_int) {
     TERMINATION_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+/// 托盘入口用的版本：拿不到锁就直接告诉用户，别让点击看起来毫无反应。
+fn begin_operation_or_report(app: &AppHandle) -> Option<std::sync::MutexGuard<'static, ()>> {
+    match begin_operation() {
+        Ok(guard) => Some(guard),
+        Err(error) => {
+            report_error(
+                app,
+                softether_tray_lib::i18n::tr("操作未执行", "Action skipped"),
+                &error,
+            );
+            None
+        }
+    }
 }
 
 fn state_settings(state: &State<AppState>) -> Settings {
@@ -348,6 +382,17 @@ fn shutdown_client(app: &AppHandle) {
     if SHUTDOWN_STARTED.swap(true, Ordering::SeqCst) {
         return;
     }
+    // 退出要排在正在跑的动作后面：抢在连接中途停服务会把客户端留在半截状态。
+    // 这里用阻塞锁——退出本来就该等手上的动作收尾，而不是直接甩手走人。
+    let _guard = OPERATION_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    stop_vpn_for_exit(app);
+}
+
+/// 退出前的 VPN 收尾，不带锁也不改退出标志。
+///
+/// 退出和「安装更新」都要用：更新会替换系统里的客户端文件，必须先断开并停掉
+/// 由本应用托管的客户端；区别只是更新失败时还要让应用继续能用。
+fn stop_vpn_for_exit(app: &AppHandle) {
     let settings = state_settings(&app.state::<AppState>());
     // 应用退出总是断开当前账户，但不擅自关闭用户自己启动的客户端服务。
     if vpn::service_running() {
@@ -449,6 +494,7 @@ fn notify_disconnected(app: &AppHandle, name: &str) {
 /// 托盘里的「启动服务」：只拉起客户端，不替用户自动连某个账户——
 /// 该连哪个由菜单里点谁决定，这里不能猜。
 fn start_service_from_tray(app: &AppHandle) {
+    let Some(_guard) = begin_operation_or_report(app) else { return };
     let settings = state_settings(&app.state::<AppState>());
     match vpn::start_service(&settings) {
         Ok(spawned) => {
@@ -470,6 +516,7 @@ fn start_service_from_tray(app: &AppHandle) {
 }
 
 fn connect_account(app: &AppHandle, name: String) {
+    let Some(_guard) = begin_operation_or_report(app) else { return };
     match do_connect(app, &name) {
         Ok(overview) => {
             notify_connected(app, &name, &overview);
@@ -484,6 +531,7 @@ fn connect_account(app: &AppHandle, name: String) {
 }
 
 fn disconnect_account(app: &AppHandle, name: String) {
+    let Some(_guard) = begin_operation_or_report(app) else { return };
     match do_disconnect(app, &name) {
         Ok(overview) => {
             notify_disconnected(app, &name);
@@ -501,6 +549,7 @@ fn disconnect_account(app: &AppHandle, name: String) {
 }
 
 fn do_connect(app: &AppHandle, name: &str) -> Result<Overview, String> {
+    accounts::validate_name(name)?;
     let settings = state_settings(&app.state::<AppState>());
     // 只有本次真把客户端拉起来才接管归属；用户自己开着的客户端不算我们的
     if vpn::start_service(&settings)? {
@@ -622,6 +671,18 @@ fn do_connect(app: &AppHandle, name: &str) -> Result<Overview, String> {
                 format!("无法确定 {iface} 的隧道网关，路由未下发")
             });
         }
+    } else {
+        // 隧道已经起来了，但没有虚拟网卡 = 一条网段路由都没下发。
+        // 这不能当成功静默返回：界面会显示「已连接」，内网却全不通。
+        let mut overview = overview;
+        overview.route_warnings.push(
+            softether_tray_lib::i18n::tr(
+                "隧道已建立，但未找到虚拟网卡，网段路由未下发。请确认账户绑定的虚拟网卡已创建并启用",
+                "The tunnel is up, but no virtual adapter was found, so no subnet routes were installed. Make sure the adapter bound to this profile exists and is enabled.",
+            )
+            .to_string(),
+        );
+        return Ok(overview);
     }
     Ok(vpn::read_overview_fresh(&settings))
 }
@@ -722,6 +783,7 @@ fn decorate_dhcp_error(message: String, iface: &str, need_lease: bool) -> String
 /// 同一次 pkexec，否则用户连接一次要输两遍密码。
 
 fn do_disconnect(app: &AppHandle, name: &str) -> Result<Overview, String> {
+    accounts::validate_name(name)?;
     let settings = state_settings(&app.state::<AppState>());
     let output = settings::vpncmd(&settings, settings::VpncmdAuth::Plain, &["AccountDisconnect", name])?;
     let acceptable = softether_tray_lib::softether::disconnect_acceptable(&output.stdout);
@@ -804,7 +866,10 @@ async fn do_connect_blocking(app: &AppHandle, name: &str) -> Result<Overview, St
     let task = {
         let app = app.clone();
         let name = name.to_string();
-        tauri::async_runtime::spawn_blocking(move || do_connect(&app, &name))
+        tauri::async_runtime::spawn_blocking(move || {
+            let _guard = begin_operation()?;
+            do_connect(&app, &name)
+        })
     };
     match task.await {
         Ok(result) => result,
@@ -818,6 +883,7 @@ async fn do_connect_blocking(app: &AppHandle, name: &str) -> Result<Overview, St
 
 #[tauri::command]
 async fn disconnect(app: AppHandle, name: String) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let result = do_disconnect(&app, &name);
     match &result {
         Ok(overview) => {
@@ -833,6 +899,7 @@ async fn disconnect(app: AppHandle, name: String) -> Result<Overview, String> {
 
 #[tauri::command]
 async fn start_service(app: AppHandle) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     // 记下"客户端由本应用拉起"，退出时据此决定是否一并停止。
     // 客户端已在跑时不动标记：那是用户自己的，关掉应用不该连带关掉它。
@@ -845,6 +912,7 @@ async fn start_service(app: AppHandle) -> Result<Overview, String> {
 /// 停止 SoftEther 客户端。会先断开当前账户并清路由，再停服务，避免残留黑洞路由。
 #[tauri::command]
 async fn stop_service(app: AppHandle) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     let overview = vpn::read_overview_fresh(&settings);
     if let Some(name) = vpn::active_account(&settings, &overview.accounts) {
@@ -898,6 +966,7 @@ async fn get_settings(app: AppHandle) -> Settings {
 
 #[tauri::command]
 async fn save_settings(app: AppHandle, settings: Settings) -> Result<Settings, String> {
+    let _guard = begin_operation()?;
     for subnet in &settings.routes.subnets {
         settings::validate_subnet(subnet)?;
     }
@@ -1141,16 +1210,32 @@ async fn connect_in_client(
     name: String,
     source: Option<String>,
 ) -> Result<Overview, String> {
-    let settings = state_settings(&app.state::<AppState>());
-    if vpn::service_running() {
-        vpn::stop_service(&settings, Some(60))?;
-    }
-    let mut next = settings;
-    apply_client_choice(&mut next, &dir, source.as_deref());
-    validate_client_choice(&next)?;
-    store_settings(&app.state::<AppState>(), next)?;
-
-    let result = do_connect_blocking(&app, &name).await;
+    // 停旧客户端 → 写设置 → 连新账户必须串成一个动作：中途被别的操作插进来，
+    // 界面显示的和实际跑的就不是同一份客户端了。整段放进阻塞线程并持操作锁。
+    let task = {
+        let app = app.clone();
+        let name = name.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _guard = begin_operation()?;
+            let settings = state_settings(&app.state::<AppState>());
+            if vpn::service_running() {
+                vpn::stop_service(&settings, Some(60))?;
+            }
+            let mut next = settings;
+            apply_client_choice(&mut next, &dir, source.as_deref());
+            validate_client_choice(&next)?;
+            store_settings(&app.state::<AppState>(), next)?;
+            do_connect(&app, &name)
+        })
+    };
+    let result = match task.await {
+        Ok(result) => result,
+        Err(e) => Err(softether_tray_lib::i18n::tr(
+            &format!("连接任务失败: {e}"),
+            &format!("The connection task failed: {e}"),
+        )
+        .to_string()),
+    };
     match &result {
         Ok(overview) => {
             notify_connected(&app, &name, overview);
@@ -1177,6 +1262,7 @@ async fn switch_client_dir(
     // 前端从别的客户端切回内置时就会把来源写错。
     source: Option<String>,
 ) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     let was_running = vpn::service_running();
     if was_running {
@@ -1256,6 +1342,7 @@ async fn account_detail(app: AppHandle, name: String) -> Result<AccountDetail, S
 
 #[tauri::command]
 async fn save_account(app: AppHandle, original: Option<String>, input: AccountInput) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     accounts::save_account(original.as_deref(), &input, &settings)?;
     Ok(publish(&app))
@@ -1263,6 +1350,7 @@ async fn save_account(app: AppHandle, original: Option<String>, input: AccountIn
 
 #[tauri::command]
 async fn delete_account(app: AppHandle, name: String) -> Result<Overview, String> {
+    let _guard = begin_operation()?;
     let state = app.state::<AppState>();
     let settings = state_settings(&state);
     if settings.active_account.as_deref() == Some(name.as_str()) {
@@ -1276,6 +1364,7 @@ async fn delete_account(app: AppHandle, name: String) -> Result<Overview, String
 
 #[tauri::command]
 async fn create_nic(app: AppHandle, name: String) -> Result<Vec<NicInfo>, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     accounts::create_nic(&settings, &name)?;
     Ok(vpn::read_overview_fresh(&settings).nics)
@@ -1284,6 +1373,7 @@ async fn create_nic(app: AppHandle, name: String) -> Result<Vec<NicInfo>, String
 /// 删除虚拟网卡。用它的连接配置会失去网卡，必须先让用户确认（前端负责）。
 #[tauri::command]
 async fn delete_nic(app: AppHandle, name: String) -> Result<Vec<NicInfo>, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     accounts::delete_nic(&settings, &name)?;
     let overview = vpn::read_overview_fresh(&settings);
@@ -1298,6 +1388,7 @@ async fn set_nic_enabled(
     name: String,
     enabled: bool,
 ) -> Result<Vec<NicInfo>, String> {
+    let _guard = begin_operation()?;
     let settings = state_settings(&app.state::<AppState>());
     accounts::set_nic_enabled(&settings, &name, enabled)?;
     Ok(vpn::read_overview_fresh(&settings).nics)
@@ -1403,15 +1494,19 @@ async fn verify_routes(app: AppHandle) -> Result<RouteReport, String> {
         // 输出格式必须与 helper 的 probe 完全一致，否则解析层要写两套；
         // 网关推导也要与 connect 一致（默认路由的 via 优先），否则"验证"和
         // "下发"用的不是同一个网关，通不通的结论就没有意义。
+        // 三态也要对齐 helper：路由在但隧道不通 = DEAD，不能只报 OK/NOROUTE。
         let script = format!(
             "iface={iface}\nnets={nets_arg}\n\
              gw=$(ip -4 route show default dev $iface 2>/dev/null | awk '/via/ {{for (i = 1; i <= NF; i++) if ($i == \"via\") {{print $(i + 1); exit}}}}')\n\
              [ -n \"$gw\" ] || gw=$(ip -4 route show dev $iface | awk '/proto kernel/ && / src / {{print $1; exit}}' | cut -d/ -f1 | awk -F. 'BEGIN{{OFS=\".\"}} NF==4{{$4=1; print}}')\n\
              [ -n \"$gw\" ] || {{ echo NO_GATEWAY >&2; exit 3; }}\n\
-             if ping -c 1 -W 2 -I $iface $gw >/dev/null 2>&1; then echo 'TUNNEL up'; else echo 'TUNNEL down'; fi\n\
+             tunnel=0\n\
+             if ping -c 1 -W 2 -I $iface $gw >/dev/null 2>&1; then tunnel=1; echo 'TUNNEL up'; else echo 'TUNNEL down'; fi\n\
              IFS=,; set -- $nets\n\
              for net in \"$@\"; do\n\
-             if ip -4 route get \"${{net%%/*}}\" 2>/dev/null | grep -q \"dev $iface\"; then echo \"OK $net\"; else echo \"NOROUTE $net\"; fi\n\
+             if ip -4 route get \"${{net%%/*}}\" 2>/dev/null | grep -q \"dev $iface\"; then\n\
+             if [ \"$tunnel\" -eq 1 ]; then echo \"OK $net\"; else echo \"DEAD $net\"; fi\n\
+             else echo \"NOROUTE $net\"; fi\n\
              done"
         );
         settings::run_privileged(&script)?
@@ -1598,6 +1693,44 @@ async fn quit_app(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 查一次是否有新版本。失败不弹窗：启动时静默，只有用户点箭头时才需要提示。
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
+    let current = app.package_info().version.to_string();
+    tauri::async_runtime::spawn_blocking(move || update::check(&current))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// 下载最新版安装包到配置目录，下载完返回 `downloaded = true`。
+#[tauri::command]
+async fn download_update(app: AppHandle) -> Result<UpdateStatus, String> {
+    let current = app.package_info().version.to_string();
+    tauri::async_runtime::spawn_blocking(move || update::download(&current))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+/// 安装已经下载好的包：先收尾 VPN，再交给系统包管理器，成功后退出应用。
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let task = {
+        let app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+            let pending = update::verify_pending()?;
+            // 与连接/断开互斥：安装期间不允许再起新的连接。
+            let _guard = begin_operation()?;
+            stop_vpn_for_exit(&app);
+            update::install_package(&pending)
+        })
+    };
+    task.await.map_err(|error| error.to_string())??;
+    // 磁盘上的可执行文件已经被替换，退出让用户重新打开新版本。
+    SHUTDOWN_STARTED.store(true, Ordering::SeqCst);
+    app.exit(0);
+    Ok(())
+}
+
 fn main() {
     // 让托盘图标同时以「图标主题名」发布（见 vendor/tray-icon 的 patch）。
     // deb 把图标装在 /usr/share/icons/hicolor/*/apps/softether-tray.png，
@@ -1606,6 +1739,17 @@ fn main() {
     let initial = Settings::load();
     softether_tray_lib::i18n::set_locale(&initial.locale);
     tauri::Builder::default()
+        // 单实例必须最先注册：后开的那份在插件初始化阶段就把自己的参数转给已在跑的
+        // 实例并直接退出，不会走到后面的 setup（客户端启动、自动连接都会重复执行）。
+        // 回调由 zbus 的后台线程派发，窗口操作要转回主线程。
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // 开机自启带 --hidden，这种情况不应把窗口弹出来
+            if argv.iter().any(|arg| arg == "--hidden") {
+                return;
+            }
+            let app = app.clone();
+            let _ = app.clone().run_on_main_thread(move || show_window(&app));
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -1647,6 +1791,9 @@ fn main() {
             switch_client_dir,
             validate_client_dir,
             open_softether_site,
+            check_update,
+            download_update,
+            install_update,
             quit_app
         ])
         .setup(|app| {

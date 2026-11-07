@@ -329,6 +329,17 @@ const zh = {
   'duration.seconds': '{s} 秒',
 
   'sparkline.aria': '最近 80 秒速率',
+
+  'update.tooltipAvailable': '发现新版本 v{version}，点击下载',
+  'update.tooltipDownloaded': 'v{version} 已下载，点击安装',
+  'update.downloading': '正在下载 v{version}…',
+  'update.installing': '正在安装…',
+  'update.readyTitle': '更新已就绪',
+  'update.readyBody': 'v{version} 已下载完成。安装会先断开 VPN 并关闭应用，安装完成后请重新打开。',
+  'update.installNow': '立即安装',
+  'update.later': '稍后',
+  'update.downloadFailed': '下载更新失败',
+  'update.installFailed': '安装更新失败',
 } as const
 
 export type MessageKey = keyof typeof zh
@@ -656,6 +667,17 @@ const en: Record<MessageKey, string> = {
   'duration.seconds': '{s} s',
 
   'sparkline.aria': 'Rate over the last 80 seconds',
+
+  'update.tooltipAvailable': 'New version v{version} available; click to download',
+  'update.tooltipDownloaded': 'v{version} downloaded; click to install',
+  'update.downloading': 'Downloading v{version}…',
+  'update.installing': 'Installing…',
+  'update.readyTitle': 'Update ready',
+  'update.readyBody': 'v{version} has been downloaded. Installing disconnects the VPN and closes the app; please reopen it afterwards.',
+  'update.installNow': 'Install now',
+  'update.later': 'Later',
+  'update.downloadFailed': 'Failed to download the update',
+  'update.installFailed': 'Failed to install the update',
 }
 
 export type Locale = 'zh' | 'en'
