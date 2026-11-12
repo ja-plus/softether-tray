@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-12
+
+### Changed
+
+- The in-app updater is now an opt-in build feature (`--features updater`) and is compiled out of the released packages: the Spark Store requires updates to go through the store, so the shipped app no longer checks GitHub or downloads and installs packages itself. The sidebar update arrow only appears in builds with the feature enabled.
+- `curl` is no longer a package dependency; it was only used by the updater.
+
 ## [0.5.1] - 2026-11-07
 
 ### Added
