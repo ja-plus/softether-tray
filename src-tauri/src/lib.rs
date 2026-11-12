@@ -4,5 +4,6 @@ pub mod i18n;
 pub mod settings;
 pub mod sha0;
 pub mod softether;
+#[cfg(feature = "updater")]
 pub mod update;
 pub mod vpn;

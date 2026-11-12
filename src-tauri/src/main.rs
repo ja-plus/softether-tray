@@ -15,6 +15,7 @@ use softether_tray_lib::accounts::{self, AccountInput};
 use softether_tray_lib::client_dir::{self, ClientCandidate};
 use softether_tray_lib::settings::{self, Settings};
 use softether_tray_lib::softether::{AccountDetail, DiagResult, NicInfo};
+#[cfg(feature = "updater")]
 use softether_tray_lib::update::{self, UpdateStatus};
 use softether_tray_lib::vpn::{self, Overview};
 
@@ -1694,6 +1695,7 @@ async fn quit_app(app: AppHandle) -> Result<(), String> {
 }
 
 /// 查一次是否有新版本。失败不弹窗：启动时静默，只有用户点箭头时才需要提示。
+#[cfg(feature = "updater")]
 #[tauri::command]
 async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
     let current = app.package_info().version.to_string();
@@ -1703,6 +1705,7 @@ async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
 }
 
 /// 下载最新版安装包到配置目录，下载完返回 `downloaded = true`。
+#[cfg(feature = "updater")]
 #[tauri::command]
 async fn download_update(app: AppHandle) -> Result<UpdateStatus, String> {
     let current = app.package_info().version.to_string();
@@ -1712,6 +1715,7 @@ async fn download_update(app: AppHandle) -> Result<UpdateStatus, String> {
 }
 
 /// 安装已经下载好的包：先收尾 VPN，再交给系统包管理器，成功后退出应用。
+#[cfg(feature = "updater")]
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
     let task = {
@@ -1791,8 +1795,11 @@ fn main() {
             switch_client_dir,
             validate_client_dir,
             open_softether_site,
+            #[cfg(feature = "updater")]
             check_update,
+            #[cfg(feature = "updater")]
             download_update,
+            #[cfg(feature = "updater")]
             install_update,
             quit_app
         ])

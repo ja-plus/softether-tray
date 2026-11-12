@@ -14,6 +14,12 @@ path = "src/lib.rs"
 name = "softether-tray"
 path = "src/main.rs"
 
+# 应用内自动更新默认不编译：星火商店不允许应用绕过商店自行下载安装更新，
+# 上架的包必须不带这个行为。需要时用 --features updater 构建。
+[features]
+default = []
+updater = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

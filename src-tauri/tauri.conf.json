@@ -41,7 +41,7 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["policykit-1 | pkexec", "curl"],
+        "depends": ["policykit-1 | pkexec"],
         "files": {
           "/usr/lib/softether-tray/client/vpnclient": "../vendor/softether-client/vpnclient",
           "/usr/lib/softether-tray/client/vpncmd": "../vendor/softether-client/vpncmd",
@@ -55,7 +55,7 @@
         "postInstallScript": "../Tools/postinst.sh"
       },
       "rpm": {
-        "depends": ["polkit", "curl"],
+        "depends": ["polkit"],
         "files": {
           "/usr/lib/softether-tray/client/vpnclient": "../vendor/softether-client/vpnclient",
           "/usr/lib/softether-tray/client/vpncmd": "../vendor/softether-client/vpncmd",
